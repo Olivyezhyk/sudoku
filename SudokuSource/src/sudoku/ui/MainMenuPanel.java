@@ -1,5 +1,7 @@
 package sudoku.ui;
 
+import sudoku.core.ScoreManager;
+import sudoku.ui.RecordsPanel;
 import sudoku.Main;
 import sudoku.core.Difficulty;
 import sudoku.core.GameMode;
@@ -180,13 +182,23 @@ public class MainMenuPanel extends JPanel {
         gbc.gridy = 8; gbc.insets = new Insets(4, 0, 10, 0);
         add(settings, gbc);
 
+        // ── Records button ────────────────────────────────────────────────────────
+        ImageIcon recordsIcon = loadIcon("records.png", 22);   // або будь-яка наявна іконка
+        StyledButton records  = outlineBtn("  Records", recordsIcon, t);
+        records.setPreferredSize(new Dimension(260, 56));
+        records.setFont(new Font("SansSerif", Font.BOLD, 18));
+        records.addActionListener(e ->
+                Main.showPanel(new RecordsPanel(new ScoreManager(), Main::showMenu)));
+        gbc.gridy = 9; gbc.insets = new Insets(4, 0, 10, 0);
+        add(records, gbc);
+
         // ── Exit button ───────────────────────────────────────────────────────
         ImageIcon exitIcon = loadIcon("exit.png", 20);
         StyledButton exit = iconOnlyBtn("  Exit", exitIcon);
         exit.setPreferredSize(new Dimension(260, 48));
         exit.setFont(new Font("SansSerif", Font.BOLD, 16));
         exit.addActionListener(e -> System.exit(0));
-        gbc.gridy = 9; gbc.insets = new Insets(4, 0, 0, 0);
+        gbc.gridy = 10; gbc.insets = new Insets(4, 0, 0, 0);
         add(exit, gbc);
     }
 

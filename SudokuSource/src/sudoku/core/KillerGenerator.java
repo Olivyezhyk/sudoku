@@ -44,8 +44,7 @@ public class KillerGenerator {
         //    cage structure stays the same; these are just pre-filled values.
         int[][] puzzle = buildStartingPuzzle(solution, cages, difficulty);
 
-        return new GameState(puzzle, solution, GameMode.KILLER,
-                Collections.emptyList(), cages);
+        return new GameState(puzzle, solution, GameMode.KILLER, cages);
     }
 
     // ── Step 1: complete solution ─────────────────────────────────────────────

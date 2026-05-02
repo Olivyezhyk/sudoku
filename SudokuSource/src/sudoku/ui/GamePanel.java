@@ -9,52 +9,44 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
-/**
- * Game panel updated to:
- *   – Accept a {@link GameMode} parameter alongside {@link Difficulty}.
- *   – Initialise the correct generator (Classic / Chaos / Killer).
- *   – Show the game-mode name in the top bar.
- *
- * All other logic is preserved verbatim.
- */
 public class GamePanel extends JPanel {
 
-    private final Difficulty difficulty;
-    private final GameMode   gameMode;
+    private final Difficulty   difficulty;
+    private final GameMode     gameMode;
+    private final ScoreManager scoreManager;
 
-    private GameState   state;
-    private SudokuGrid  grid;
+    private GameState      state;
+    private SudokuGrid     grid;
 
-    private JLabel     timerLabel;
-    private JPanel     heartsPanel;
-    private JLabel     hintsLabel;
-    private Timer      gameTimer;
-    private int        elapsedSeconds  = 0;
-    private int        remainingSeconds = 0;   // used only in TIMED mode
-    private JButton[]  numBtns = new JButton[9];
+    private JLabel         timerLabel;
+    private JPanel         heartsPanel;
+    private JLabel         hintsLabel;
+    private Timer          gameTimer;
+    private int            elapsedSeconds   = 0;
+    private int            remainingSeconds = 0;
+    private JButton[]      numBtns          = new JButton[9];
+    private JToggleButton  penBtn, pencilBtn;
 
-    private JToggleButton penBtn, pencilBtn;
-
-    // ── Time limits per difficulty in TIMED mode ──────────────────────────────
+    // ── Time limits ───────────────────────────────────────────────────────────
 
     private int getTimeLimit() {
         return switch (difficulty) {
-            case EASY   -> 15 * 60;   // 15 min
-            case MEDIUM -> 10 * 60;   // 10 min
-            case HARD   ->  7 * 60;   //  7 min
+            case EASY   -> 15 * 60;
+            case MEDIUM -> 10 * 60;
+            case HARD   ->  7 * 60;
         };
     }
 
-    // ── Constructor overloads ─────────────────────────────────────────────────
+    // ── Constructors ──────────────────────────────────────────────────────────
 
-    /** Backwards-compatible: Classic mode. */
     public GamePanel(Difficulty difficulty) {
         this(difficulty, GameMode.CLASSIC);
     }
 
     public GamePanel(Difficulty difficulty, GameMode gameMode) {
-        this.difficulty = difficulty;
-        this.gameMode   = gameMode;
+        this.difficulty   = difficulty;
+        this.gameMode     = gameMode;
+        this.scoreManager = new ScoreManager();
         initGame();
         if (gameMode == GameMode.TIMED) remainingSeconds = getTimeLimit();
         buildUI();
@@ -62,7 +54,7 @@ public class GamePanel extends JPanel {
         startTimer();
     }
 
-    // ── Game initialisation ───────────────────────────────────────────────────
+    // ── Game init ─────────────────────────────────────────────────────────────
 
     private void initGame() {
         int attempts = 0;
@@ -70,8 +62,6 @@ public class GamePanel extends JPanel {
             try {
                 state = switch (gameMode) {
                     case KILLER -> new KillerGenerator().generate(difficulty);
-                    // TIMED uses a standard classic puzzle — the only difference
-                    // is the countdown timer enforced in startTimer().
                     default -> {
                         SudokuGenerator gen = new SudokuGenerator();
                         int[][] puzzle   = gen.generatePuzzle(difficulty);
@@ -83,7 +73,6 @@ public class GamePanel extends JPanel {
             } catch (IllegalStateException e) {
                 attempts++;
                 if (attempts >= 3) {
-                    System.err.println("GamePanel: generator failed, falling back to Classic. " + e.getMessage());
                     SudokuGenerator gen = new SudokuGenerator();
                     int[][] puzzle   = gen.generatePuzzle(difficulty);
                     int[][] solution = gen.solve(puzzle);
@@ -94,11 +83,11 @@ public class GamePanel extends JPanel {
         }
     }
 
-    // ── UI Building ───────────────────────────────────────────────────────────
+    // ── UI ────────────────────────────────────────────────────────────────────
 
     private void buildUI() {
         setLayout(new BorderLayout(0, 0));
-        add(createTopBar(),    BorderLayout.NORTH);
+        add(createTopBar(), BorderLayout.NORTH);
 
         grid = new SudokuGrid(state, this::onGridChange);
         JPanel gridWrapper = new JPanel(new GridBagLayout());
@@ -114,13 +103,20 @@ public class GamePanel extends JPanel {
         addKeyListener(new KeyAdapter() {
             @Override public void keyPressed(KeyEvent e) {
                 int k = e.getKeyCode();
-                if (k >= KeyEvent.VK_1 && k <= KeyEvent.VK_9)              enterNum(k - KeyEvent.VK_0);
-                else if (k >= KeyEvent.VK_NUMPAD1 && k <= KeyEvent.VK_NUMPAD9) enterNum(k - KeyEvent.VK_NUMPAD0);
-                else if (k == KeyEvent.VK_DELETE || k == KeyEvent.VK_BACK_SPACE) deleteSelected();
-                else if (k == KeyEvent.VK_UP    && state.getSelectedRow() > 0) nav(state.getSelectedRow()-1, state.getSelectedCol());
-                else if (k == KeyEvent.VK_DOWN  && state.getSelectedRow() < 8) nav(state.getSelectedRow()+1, state.getSelectedCol());
-                else if (k == KeyEvent.VK_LEFT  && state.getSelectedCol() > 0) nav(state.getSelectedRow(), state.getSelectedCol()-1);
-                else if (k == KeyEvent.VK_RIGHT && state.getSelectedCol() < 8) nav(state.getSelectedRow(), state.getSelectedCol()+1);
+                if (k >= KeyEvent.VK_1 && k <= KeyEvent.VK_9)
+                    enterNum(k - KeyEvent.VK_0);
+                else if (k >= KeyEvent.VK_NUMPAD1 && k <= KeyEvent.VK_NUMPAD9)
+                    enterNum(k - KeyEvent.VK_NUMPAD0);
+                else if (k == KeyEvent.VK_DELETE || k == KeyEvent.VK_BACK_SPACE)
+                    deleteSelected();
+                else if (k == KeyEvent.VK_UP    && state.getSelectedRow() > 0)
+                    nav(state.getSelectedRow() - 1, state.getSelectedCol());
+                else if (k == KeyEvent.VK_DOWN  && state.getSelectedRow() < 8)
+                    nav(state.getSelectedRow() + 1, state.getSelectedCol());
+                else if (k == KeyEvent.VK_LEFT  && state.getSelectedCol() > 0)
+                    nav(state.getSelectedRow(), state.getSelectedCol() - 1);
+                else if (k == KeyEvent.VK_RIGHT && state.getSelectedCol() < 8)
+                    nav(state.getSelectedRow(), state.getSelectedCol() + 1);
             }
         });
         SwingUtilities.invokeLater(this::requestFocus);
@@ -139,25 +135,23 @@ public class GamePanel extends JPanel {
                 g2.setColor(th.bgSecondary());
                 g2.fillRect(0, 0, getWidth(), getHeight());
                 g2.setColor(th.gridLine());
-                g2.drawLine(0, getHeight()-1, getWidth(), getHeight()-1);
+                g2.drawLine(0, getHeight() - 1, getWidth(), getHeight() - 1);
                 g2.dispose();
             }
         };
         bar.setOpaque(false);
         bar.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
 
-        // Back button
         StyledButton back = iconBtn("", 32, loadIcon("back.png", 25));
         back.setPreferredSize(new Dimension(72, 60));
         back.addActionListener(e -> { gameTimer.stop(); Main.showMenu(); });
 
-        // Centre info
         JPanel centre = new JPanel(new FlowLayout(FlowLayout.CENTER, 18, 0));
         centre.setOpaque(false);
 
         String modeText = switch (gameMode) {
             case TIMED  -> difficulty.toString().toUpperCase() + " · "
-                    + String.format("%d:%02d", getTimeLimit()/60, getTimeLimit()%60);
+                    + String.format("%d:%02d", getTimeLimit() / 60, getTimeLimit() % 60);
             case KILLER -> "KILLER · " + difficulty.toString().toUpperCase();
             default     -> difficulty.toString().toUpperCase();
         };
@@ -180,7 +174,7 @@ public class GamePanel extends JPanel {
         timerLabel.setIcon(loadIcon("timer.png", 32));
         if (gameMode == GameMode.TIMED) {
             int lim = getTimeLimit();
-            timerLabel.setText(String.format(" %02d:%02d", lim/60, lim%60));
+            timerLabel.setText(String.format(" %02d:%02d", lim / 60, lim % 60));
         } else {
             timerLabel.setText(" 00:00");
         }
@@ -190,15 +184,20 @@ public class GamePanel extends JPanel {
         hintsLabel.setForeground(t.textMuted());
         hintsLabel.setIconTextGap(6);
 
-        centre.add(diffLbl); centre.add(sep);
-        centre.add(heartsPanel); centre.add(timerLabel); centre.add(hintsLabel);
+        centre.add(diffLbl);
+        centre.add(sep);
+        centre.add(heartsPanel);
+        centre.add(timerLabel);
+        centre.add(hintsLabel);
 
-        // Settings button
         StyledButton settingsBtn = iconBtn("", 28, loadIcon("settings.png", 25));
         settingsBtn.setPreferredSize(new Dimension(72, 60));
         settingsBtn.addActionListener(e -> {
             gameTimer.stop();
-            Main.showPanel(new SettingsPanel(() -> { Main.showPanel(GamePanel.this); gameTimer.start(); }));
+            Main.showPanel(new SettingsPanel(() -> {
+                Main.showPanel(GamePanel.this);
+                gameTimer.start();
+            }));
         });
 
         bar.add(back,        BorderLayout.WEST);
@@ -215,8 +214,8 @@ public class GamePanel extends JPanel {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 ThemeManager.Theme th = ThemeManager.get();
-                g2.setColor(th.bgSecondary()); g2.fillRect(0,0,getWidth(),getHeight());
-                g2.setColor(th.gridLine());    g2.drawLine(0,0,0,getHeight());
+                g2.setColor(th.bgSecondary()); g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.setColor(th.gridLine());    g2.drawLine(0, 0, 0, getHeight());
                 g2.dispose();
             }
         };
@@ -226,56 +225,68 @@ public class GamePanel extends JPanel {
         panel.setBorder(BorderFactory.createEmptyBorder(16, 12, 16, 12));
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.insets = new Insets(6,0,6,0);
+        gbc.gridx = 0;
+        gbc.fill  = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(6, 0, 6, 0);
 
-        panel.add(sectionLabel("Numbers", t), rowOf(gbc, 0, new Insets(0,0,6,0)));
+        panel.add(sectionLabel("Numbers", t), rowOf(gbc, 0, new Insets(0, 0, 6, 0)));
 
         JPanel numGrid = new JPanel(new GridLayout(3, 3, 8, 8));
         numGrid.setOpaque(false);
         for (int i = 1; i <= 9; i++) {
             final int num = i;
-            // FIX: createNumBtn no longer adds its own listener, so we add only ONE here
             JButton btn = createNumBtn(String.valueOf(i));
-            numBtns[i-1] = btn;
+            numBtns[i - 1] = btn;
             btn.addActionListener(e -> { enterNum(num); requestFocus(); });
             numGrid.add(btn);
         }
-        panel.add(numGrid, rowOf(gbc, 1, new Insets(8,0,24,0)));
+        panel.add(numGrid, rowOf(gbc, 1, new Insets(8, 0, 24, 0)));
 
-        panel.add(sectionLabel("Mode", t), rowOf(gbc, 2, new Insets(0,0,8,0)));
+        panel.add(sectionLabel("Mode", t), rowOf(gbc, 2, new Insets(0, 0, 8, 0)));
         JPanel modeRow = new JPanel(new GridLayout(1, 2, 8, 0));
         modeRow.setOpaque(false);
         penBtn    = createModeBtn(loadIcon("pen.png",    32), true);
         pencilBtn = createModeBtn(loadIcon("pencil.png", 32), false);
-        penBtn.addActionListener(e  -> { state.setPencilMode(false); penBtn.setSelected(true);    pencilBtn.setSelected(false); modeRow.repaint(); updateStats(); requestFocus(); });
-        pencilBtn.addActionListener(e -> { state.setPencilMode(true);  pencilBtn.setSelected(true); penBtn.setSelected(false);    modeRow.repaint(); updateStats(); requestFocus(); });
-        modeRow.add(penBtn); modeRow.add(pencilBtn);
-        panel.add(modeRow, rowOf(gbc, 3, new Insets(0,0,24,0)));
+        penBtn.addActionListener(e -> {
+            state.setPencilMode(false);
+            penBtn.setSelected(true);
+            pencilBtn.setSelected(false);
+            modeRow.repaint(); updateStats(); requestFocus();
+        });
+        pencilBtn.addActionListener(e -> {
+            state.setPencilMode(true);
+            pencilBtn.setSelected(true);
+            penBtn.setSelected(false);
+            modeRow.repaint(); updateStats(); requestFocus();
+        });
+        modeRow.add(penBtn);
+        modeRow.add(pencilBtn);
+        panel.add(modeRow, rowOf(gbc, 3, new Insets(0, 0, 24, 0)));
 
-        panel.add(sectionLabel("Actions", t), rowOf(gbc, 4, new Insets(0,0,8,0)));
+        panel.add(sectionLabel("Actions", t), rowOf(gbc, 4, new Insets(0, 0, 8, 0)));
         JButton eraseBtn = createActionBtn(loadIcon("erase.png", 32));
         eraseBtn.addActionListener(e -> { deleteSelected(); requestFocus(); });
-        panel.add(eraseBtn, rowOf(gbc, 5, new Insets(0,0,8,0)));
+        panel.add(eraseBtn, rowOf(gbc, 5, new Insets(0, 0, 8, 0)));
 
         JButton hintBtn = createActionBtn(loadIcon("hint.png", 32));
         hintBtn.addActionListener(e -> { useHint(); requestFocus(); });
-        panel.add(hintBtn, rowOf(gbc, 6, new Insets(0,0,24,0)));
+        panel.add(hintBtn, rowOf(gbc, 6, new Insets(0, 0, 24, 0)));
 
-        gbc.gridy = 7; gbc.weighty = 1; panel.add(Box.createVerticalGlue(), gbc); gbc.weighty = 0;
+        gbc.gridy = 7; gbc.weighty = 1;
+        panel.add(Box.createVerticalGlue(), gbc);
+        gbc.weighty = 0;
 
         StyledButton newGame = new StyledButton("New Game");
         newGame.setPreferredSize(new Dimension(256, 60));
         newGame.setFont(new Font("SansSerif", Font.BOLD, 18));
         newGame.addActionListener(e -> restartGame());
-        panel.add(newGame, rowOf(gbc, 8, new Insets(0,0,0,0)));
+        panel.add(newGame, rowOf(gbc, 8, new Insets(0, 0, 0, 0)));
 
         return panel;
     }
 
-    // ── Number buttons ────────────────────────────────────────────────────────
+    // ── Number button ─────────────────────────────────────────────────────────
 
-    // FIX: removed the num parameter and the internal addActionListener —
-    //      the listener is now added exactly once in createRightPanel().
     private JButton createNumBtn(String label) {
         JButton btn = new JButton(label) {
             @Override protected void paintComponent(Graphics g) {
@@ -285,32 +296,36 @@ public class GamePanel extends JPanel {
                 boolean exhausted = !isEnabled();
                 ButtonModel m = getModel();
                 if (exhausted) {
-                    g2.setColor(new Color(t.textMuted().getRed(),t.textMuted().getGreen(),t.textMuted().getBlue(),30));
-                    g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
-                    g2.setColor(new Color(t.textMuted().getRed(),t.textMuted().getGreen(),t.textMuted().getBlue(),60));
-                    g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
+                    g2.setColor(new Color(t.textMuted().getRed(), t.textMuted().getGreen(), t.textMuted().getBlue(), 30));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                    g2.setColor(new Color(t.textMuted().getRed(), t.textMuted().getGreen(), t.textMuted().getBlue(), 60));
+                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
                     FontMetrics fm = g2.getFontMetrics(getFont());
-                    g2.setColor(new Color(t.textMuted().getRed(),t.textMuted().getGreen(),t.textMuted().getBlue(),100));
-                    g2.drawString(getText(),(getWidth()-fm.stringWidth(getText()))/2,(getHeight()+fm.getAscent()-fm.getDescent())/2);
+                    g2.setColor(new Color(t.textMuted().getRed(), t.textMuted().getGreen(), t.textMuted().getBlue(), 100));
+                    g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2,
+                            (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
                 } else {
                     Color bg = m.isPressed() ? t.accent()
-                            : m.isRollover() ? new Color(t.accent().getRed(),t.accent().getGreen(),t.accent().getBlue(),100)
-                            : new Color(t.accent().getRed(),t.accent().getGreen(),t.accent().getBlue(),50);
-                    g2.setColor(bg); g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
-                    g2.setColor(t.accent()); g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
+                            : m.isRollover() ? new Color(t.accent().getRed(), t.accent().getGreen(), t.accent().getBlue(), 100)
+                            : new Color(t.accent().getRed(), t.accent().getGreen(), t.accent().getBlue(), 50);
+                    g2.setColor(bg);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                    g2.setColor(t.accent());
+                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
                     FontMetrics fm = g2.getFontMetrics(getFont());
                     g2.setColor(t.text());
-                    g2.drawString(getText(),(getWidth()-fm.stringWidth(getText()))/2,(getHeight()+fm.getAscent()-fm.getDescent())/2);
+                    g2.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2,
+                            (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
                 }
                 g2.dispose();
             }
         };
         btn.setFont(new Font("SansSerif", Font.BOLD, 28));
         btn.setPreferredSize(new Dimension(76, 76));
-        btn.setContentAreaFilled(false); btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        // NO addActionListener here — added once in createRightPanel()
         return btn;
     }
 
@@ -320,18 +335,26 @@ public class GamePanel extends JPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 ThemeManager.Theme t = ThemeManager.get();
-                if (isSelected()) g2.setPaint(new GradientPaint(0,0,t.accent(),getWidth(),0,t.accentDark()));
-                else              g2.setColor(new Color(t.accent().getRed(),t.accent().getGreen(),t.accent().getBlue(),40));
-                g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
-                g2.setColor(t.accent()); g2.setStroke(new BasicStroke(isSelected()?2:1));
-                g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
-                if (icon != null) g2.drawImage(icon.getImage(),(getWidth()-icon.getIconWidth())/2,(getHeight()-icon.getIconHeight())/2,icon.getIconWidth(),icon.getIconHeight(),null);
+                if (isSelected())
+                    g2.setPaint(new GradientPaint(0, 0, t.accent(), getWidth(), 0, t.accentDark()));
+                else
+                    g2.setColor(new Color(t.accent().getRed(), t.accent().getGreen(), t.accent().getBlue(), 40));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.setColor(t.accent());
+                g2.setStroke(new BasicStroke(isSelected() ? 2 : 1));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+                if (icon != null)
+                    g2.drawImage(icon.getImage(),
+                            (getWidth() - icon.getIconWidth()) / 2,
+                            (getHeight() - icon.getIconHeight()) / 2,
+                            icon.getIconWidth(), icon.getIconHeight(), null);
                 g2.dispose();
             }
         };
         btn.setSelected(selected);
         btn.setPreferredSize(new Dimension(0, 60));
-        btn.setContentAreaFilled(false); btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return btn;
@@ -345,26 +368,26 @@ public class GamePanel extends JPanel {
                 ThemeManager.Theme t = ThemeManager.get();
                 ButtonModel m = getModel();
                 g2.setColor(m.isRollover()
-                        ? new Color(t.accent().getRed(),t.accent().getGreen(),t.accent().getBlue(),70)
-                        : new Color(t.accent().getRed(),t.accent().getGreen(),t.accent().getBlue(),30));
-                g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
-                g2.setColor(t.gridLine()); g2.setStroke(new BasicStroke(1));
-                g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,10,10);
-                if (icon != null) g2.drawImage(icon.getImage(),(getWidth()-icon.getIconWidth())/2,(getHeight()-icon.getIconHeight())/2,icon.getIconWidth(),icon.getIconHeight(),null);
+                        ? new Color(t.accent().getRed(), t.accent().getGreen(), t.accent().getBlue(), 70)
+                        : new Color(t.accent().getRed(), t.accent().getGreen(), t.accent().getBlue(), 30));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                g2.setColor(t.gridLine());
+                g2.setStroke(new BasicStroke(1));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+                if (icon != null)
+                    g2.drawImage(icon.getImage(),
+                            (getWidth() - icon.getIconWidth()) / 2,
+                            (getHeight() - icon.getIconHeight()) / 2,
+                            icon.getIconWidth(), icon.getIconHeight(), null);
                 g2.dispose();
             }
         };
         btn.setPreferredSize(new Dimension(256, 60));
-        btn.setContentAreaFilled(false); btn.setBorderPainted(false);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
         btn.setFocusPainted(false);
         btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return btn;
-    }
-
-    // ── Styled icon button (top bar) ──────────────────────────────────────────
-
-    private StyledButton iconBtn(String text, int fontSize) {
-        return iconBtn(text, fontSize, null);
     }
 
     private StyledButton iconBtn(String text, int fontSize, ImageIcon icon) {
@@ -373,8 +396,8 @@ public class GamePanel extends JPanel {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 ThemeManager.Theme th = ThemeManager.get();
-                g2.setColor(new Color(th.accent().getRed(),th.accent().getGreen(),th.accent().getBlue(),60));
-                g2.fillRoundRect(0,0,getWidth(),getHeight(),10,10);
+                g2.setColor(new Color(th.accent().getRed(), th.accent().getGreen(), th.accent().getBlue(), 60));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
                 if (icon != null) {
                     int ix = (getWidth()  - icon.getIconWidth())  / 2;
                     int iy = (getHeight() - icon.getIconHeight()) / 2;
@@ -382,20 +405,22 @@ public class GamePanel extends JPanel {
                             icon.getIconWidth(), icon.getIconHeight(), null);
                 } else {
                     FontMetrics fm = g2.getFontMetrics(getFont());
-                    g2.setColor(th.text()); g2.setFont(getFont());
-                    g2.drawString(getText(),(getWidth()-fm.stringWidth(getText()))/2,(getHeight()+fm.getAscent()-fm.getDescent())/2);
+                    g2.setColor(th.text());
+                    g2.setFont(getFont());
+                    g2.drawString(getText(),
+                            (getWidth() - fm.stringWidth(getText())) / 2,
+                            (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
                 }
                 g2.dispose();
             }
         };
     }
 
-    // ── Game logic ────────────────────────────────────────────────────────────
+    // ── Timer ─────────────────────────────────────────────────────────────────
 
     private void startTimer() {
         gameTimer = new Timer(1000, e -> {
             if (state.isGameOver() || state.isWon()) return;
-
             if (gameMode == GameMode.TIMED) {
                 remainingSeconds--;
                 updateTimerLabel();
@@ -424,12 +449,11 @@ public class GamePanel extends JPanel {
         }
     }
 
+    // ── Game logic ────────────────────────────────────────────────────────────
+
     private void enterNum(int num) {
         if (state.isGameOver() || state.isWon()) return;
-
         boolean wasPencil = state.isPencilMode();
-
-        // In pen mode, do not allow overwriting a correctly placed digit
         if (!wasPencil) {
             int selR = state.getSelectedRow(), selC = state.getSelectedCol();
             if (selR >= 0 && selC >= 0) {
@@ -438,25 +462,15 @@ public class GamePanel extends JPanel {
                 if (current != 0 && current == correct) return;
             }
         }
-
         state.enterNumber(num);
-
-        if (!wasPencil) {
-            // Pen mode: highlight all cells with this digit
-            grid.setHighlightNum(num);
-        } else {
-            // Pencil mode: just repaint notes, do NOT change the number highlight
-            grid.repaint();
-        }
-
+        if (!wasPencil) grid.setHighlightNum(num);
+        else            grid.repaint();
         updateStats();
-
         int selR = state.getSelectedRow(), selC = state.getSelectedCol();
         if (selR >= 0 && selC >= 0 && state.isError(selR, selC))
             SoundManager.playAsync(SoundManager.SoundType.ERROR);
         else if (!wasPencil)
             SoundManager.playAsync(SoundManager.SoundType.SUCCESS);
-
         if (state.isWon())           { gameTimer.stop(); showEndDialog(true);  }
         else if (state.isGameOver()) { gameTimer.stop(); showEndDialog(false); }
     }
@@ -464,17 +478,10 @@ public class GamePanel extends JPanel {
     private void deleteSelected() {
         int r = state.getSelectedRow(), c = state.getSelectedCol();
         if (r < 0 || c < 0) return;
-
-        // Не стираємо, якщо:
-        // 1. Це початково задана цифра (givens)
-        // 2. Режим пера + цифра правильна
         if (state.isGiven(r, c)) return;
-
         int current = state.getValue(r, c);
         int correct  = state.getSolution()[r][c];
-        boolean isCorrectPen = !state.isPencilMode() && current != 0 && current == correct;
-        if (isCorrectPen) return;
-
+        if (!state.isPencilMode() && current != 0 && current == correct) return;
         state.deleteSelected();
         grid.repaint();
     }
@@ -482,7 +489,8 @@ public class GamePanel extends JPanel {
     private void useHint() {
         if (state.useHint()) {
             SoundManager.playAsync(SoundManager.SoundType.SUCCESS);
-            updateStats(); grid.repaint();
+            updateStats();
+            grid.repaint();
             if (state.isWon()) { gameTimer.stop(); showEndDialog(true); }
         }
     }
@@ -506,7 +514,8 @@ public class GamePanel extends JPanel {
             heart.setIcon(loadIcon(i < mistakes ? "heartbroken.png" : "heart.png", 32));
             heartsPanel.add(heart);
         }
-        heartsPanel.revalidate(); heartsPanel.repaint();
+        heartsPanel.revalidate();
+        heartsPanel.repaint();
         hintsLabel.setIcon(loadIcon("hint.png", 32));
         hintsLabel.setText(" " + state.getHintsLeft());
         grid.repaint();
@@ -517,7 +526,7 @@ public class GamePanel extends JPanel {
         int[][] sol = state.getSolution();
         for (int r = 0; r < GameState.SIZE; r++)
             for (int c = 0; c < GameState.SIZE; c++)
-                if (state.getValue(r,c) == num && state.getValue(r,c) == sol[r][c]) count++;
+                if (state.getValue(r, c) == num && state.getValue(r, c) == sol[r][c]) count++;
         return count;
     }
 
@@ -533,103 +542,160 @@ public class GamePanel extends JPanel {
         JPanel newWrapper = new JPanel(new GridBagLayout());
         newWrapper.setOpaque(false);
         GridBagConstraints gc = new GridBagConstraints();
-        gc.weightx=1; gc.weighty=1; gc.fill=GridBagConstraints.BOTH;
-        gc.insets=new Insets(10,16,10,16);
+        gc.weightx = 1; gc.weighty = 1; gc.fill = GridBagConstraints.BOTH;
+        gc.insets  = new Insets(10, 16, 10, 16);
         newWrapper.add(grid, gc);
         add(newWrapper, BorderLayout.CENTER);
-        revalidate(); repaint(); updateStats();
+        revalidate();
+        repaint();
+        updateStats();
         updateTimerLabel();
-        startTimer(); requestFocus();
+        startTimer();
+        requestFocus();
     }
 
+    // ── End dialog ────────────────────────────────────────────────────────────
+
     private void showEndDialog(boolean won) {
-        SoundManager.playAsync(won ? SoundManager.SoundType.WIN : SoundManager.SoundType.LOSE);
+        SoundManager.playAsync(won ? SoundManager.SoundType.WIN
+                : SoundManager.SoundType.LOSE);
+
+        // ── ЗБЕРЕЖЕННЯ РЕКОРДУ ────────────────────────────────────────────────
+        if (won) {
+            sudoku.settings.AppSettings settings = sudoku.settings.AppSettings.getInstance();
+            String name = settings.getUserName().trim();
+            String id   = settings.getUserId().trim();
+
+            if (!name.isEmpty() && !id.isEmpty()) {
+                int elapsed = (gameMode == GameMode.TIMED)
+                        ? getTimeLimit() - remainingSeconds
+                        : elapsedSeconds;
+                scoreManager.addRecord(
+                        new ScoreRecord(name, id, elapsed, gameMode, difficulty));
+            }
+            // якщо name або id порожні — рекорд не зберігаємо, але гру не блокуємо
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         JDialog dialog = new JDialog(Main.frame, true);
-        dialog.setUndecorated(true); dialog.setSize(340, 260);
+        dialog.setUndecorated(true);
+        dialog.setSize(340, 260);
         dialog.setLocationRelativeTo(Main.frame);
+
         JPanel content = new JPanel(new GridBagLayout()) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 ThemeManager.Theme t = ThemeManager.get();
-                g2.setColor(t.bgSecondary()); g2.fillRoundRect(0,0,getWidth(),getHeight(),20,20);
-                g2.setColor(t.gridBold());    g2.setStroke(new BasicStroke(2));
-                g2.drawRoundRect(1,1,getWidth()-2,getHeight()-2,20,20);
+                g2.setColor(t.bgSecondary());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                g2.setColor(t.gridBold());
+                g2.setStroke(new BasicStroke(2));
+                g2.drawRoundRect(1, 1, getWidth() - 2, getHeight() - 2, 20, 20);
                 g2.dispose();
             }
         };
         content.setOpaque(false);
+
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx=0; gbc.fill=GridBagConstraints.HORIZONTAL;
+        gbc.gridx = 0;
+        gbc.fill  = GridBagConstraints.HORIZONTAL;
         ThemeManager.Theme t = ThemeManager.get();
 
         boolean timeUp = !won && gameMode == GameMode.TIMED && remainingSeconds <= 0;
 
-        String emojiStr = won ? "🎉" : (timeUp ? "⏰" : "💀");
-        JLabel emoji = new JLabel(emojiStr);
-        emoji.setFont(new Font("SansSerif", Font.PLAIN, 48)); emoji.setHorizontalAlignment(SwingConstants.CENTER);
-        content.add(emoji, rowOf(gbc, 0, new Insets(20,30,4,30)));
+        // Emoji
+        JLabel emoji = new JLabel(won ? "🎉" : (timeUp ? "⏰" : "💀"));
+        emoji.setFont(new Font("SansSerif", Font.PLAIN, 48));
+        emoji.setHorizontalAlignment(SwingConstants.CENTER);
+        content.add(emoji, rowOf(gbc, 0, new Insets(20, 30, 4, 30)));
 
+        // Title
         String titleStr = won ? "Victory!" : (timeUp ? "Time's Up!" : "Game Over");
         JLabel titleLbl = new JLabel(titleStr);
         titleLbl.setFont(new Font("SansSerif", Font.BOLD, 28));
         titleLbl.setForeground(won ? t.accentLight() : t.cellError());
         titleLbl.setHorizontalAlignment(SwingConstants.CENTER);
-        content.add(titleLbl, rowOf(gbc, 1, new Insets(0,30,4,30)));
+        content.add(titleLbl, rowOf(gbc, 1, new Insets(0, 30, 4, 30)));
 
+        // Subtitle
         String subStr;
         if (won && gameMode == GameMode.TIMED) {
             int used = getTimeLimit() - remainingSeconds;
-            subStr = String.format("Solved in %02d:%02d ✨", used/60, used%60);
+            subStr = String.format("Solved in %02d:%02d ✨", used / 60, used % 60);
         } else if (won) {
-            int m = elapsedSeconds/60, s = elapsedSeconds%60;
-            subStr = String.format("Solved in %02d:%02d ✨", m, s);
+            subStr = String.format("Solved in %02d:%02d ✨", elapsedSeconds / 60, elapsedSeconds % 60);
         } else if (timeUp) {
             subStr = "You ran out of time!";
         } else {
             subStr = "Better luck next time!";
         }
-        JLabel subLbl = new JLabel(subStr);
-        subLbl.setFont(new Font("SansSerif", Font.PLAIN, 13)); subLbl.setForeground(t.textMuted());
-        subLbl.setHorizontalAlignment(SwingConstants.CENTER);
-        content.add(subLbl, rowOf(gbc, 2, new Insets(0,30,14,30)));
 
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0)); btnRow.setOpaque(false);
+        // Якщо виграли але name/id не заповнені — попереджаємо
+        sudoku.settings.AppSettings settings = sudoku.settings.AppSettings.getInstance();
+        if (won && (settings.getUserName().trim().isEmpty()
+                || settings.getUserId().trim().isEmpty())) {
+            subStr += " (Set Name & ID in Settings to save scores)";
+        }
+
+        JLabel subLbl = new JLabel("<html><div style='text-align:center'>" + subStr + "</div></html>");
+        subLbl.setFont(new Font("SansSerif", Font.PLAIN, 12));
+        subLbl.setForeground(t.textMuted());
+        subLbl.setHorizontalAlignment(SwingConstants.CENTER);
+        content.add(subLbl, rowOf(gbc, 2, new Insets(0, 30, 14, 30)));
+
+        // Buttons
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        btnRow.setOpaque(false);
+
         StyledButton restart = new StyledButton("Restart");
-        restart.setPreferredSize(new Dimension(120,40));
+        restart.setPreferredSize(new Dimension(120, 40));
         restart.addActionListener(e -> { dialog.dispose(); restartGame(); });
+
         StyledButton menuBtn = new StyledButton("Menu") {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 ThemeManager.Theme th = ThemeManager.get();
-                g2.setColor(new Color(th.accent().getRed(),th.accent().getGreen(),th.accent().getBlue(),50));
-                g2.fillRoundRect(0,0,getWidth(),getHeight(),12,12);
-                g2.setColor(th.accent()); g2.setStroke(new BasicStroke(1.5f));
-                g2.drawRoundRect(0,0,getWidth()-1,getHeight()-1,12,12);
+                g2.setColor(new Color(th.accent().getRed(), th.accent().getGreen(), th.accent().getBlue(), 50));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.setColor(th.accent());
+                g2.setStroke(new BasicStroke(1.5f));
+                g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
                 FontMetrics fm = g2.getFontMetrics(getFont());
-                g2.setColor(th.textMuted()); g2.setFont(getFont());
-                g2.drawString(getText(),(getWidth()-fm.stringWidth(getText()))/2,(getHeight()+fm.getAscent()-fm.getDescent())/2);
+                g2.setColor(th.textMuted());
+                g2.setFont(getFont());
+                g2.drawString(getText(),
+                        (getWidth()  - fm.stringWidth(getText())) / 2,
+                        (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
                 g2.dispose();
             }
         };
-        menuBtn.setPreferredSize(new Dimension(120,40));
+        menuBtn.setPreferredSize(new Dimension(120, 40));
         menuBtn.addActionListener(e -> { dialog.dispose(); gameTimer.stop(); Main.showMenu(); });
-        btnRow.add(restart); btnRow.add(menuBtn);
-        content.add(btnRow, rowOf(gbc, 3, new Insets(0,30,20,30)));
-        dialog.setContentPane(content); dialog.setVisible(true);
+
+        btnRow.add(restart);
+        btnRow.add(menuBtn);
+        content.add(btnRow, rowOf(gbc, 3, new Insets(0, 30, 20, 30)));
+
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
     }
 
-    // ── Painting ──────────────────────────────────────────────────────────────
+    // ── Paint ─────────────────────────────────────────────────────────────────
 
     @Override protected void paintComponent(Graphics g) {
         Graphics2D g2 = (Graphics2D) g.create();
         ThemeManager.Theme t = ThemeManager.get();
-        g2.setPaint(new GradientPaint(0,0,t.bg(),getWidth(),getHeight(),t.bgSecondary()));
-        g2.fillRect(0,0,getWidth(),getHeight()); g2.dispose();
+        g2.setPaint(new GradientPaint(0, 0, t.bg(), getWidth(), getHeight(), t.bgSecondary()));
+        g2.fillRect(0, 0, getWidth(), getHeight());
+        g2.dispose();
     }
 
-    @Override public void removeNotify() { super.removeNotify(); if (gameTimer!=null) gameTimer.stop(); }
+    @Override public void removeNotify() {
+        super.removeNotify();
+        if (gameTimer != null) gameTimer.stop();
+    }
 
     // ── Layout helpers ────────────────────────────────────────────────────────
 
@@ -639,8 +705,10 @@ public class GamePanel extends JPanel {
 
     private JLabel sectionLabel(String text, ThemeManager.Theme t) {
         JLabel l = new JLabel(text);
-        l.setFont(new Font("SansSerif", Font.BOLD, 14)); l.setForeground(t.textMuted());
-        l.setHorizontalAlignment(SwingConstants.CENTER); return l;
+        l.setFont(new Font("SansSerif", Font.BOLD, 14));
+        l.setForeground(t.textMuted());
+        l.setHorizontalAlignment(SwingConstants.CENTER);
+        return l;
     }
 
     // ── Icon loader ───────────────────────────────────────────────────────────

@@ -63,7 +63,7 @@ public class SudokuGrid extends JPanel {
 
         // ── 1. Mode-specific background tints (drawn before cells) ────────────
         GameMode mode = state.getGameMode();
-        if (mode == GameMode.TIMED)       drawChaosRegionTints(g2, cellW, cellH);
+        if (mode == GameMode.TIMED);
         else if (mode == GameMode.KILLER) drawKillerCageTints(g2, cellW, cellH, t);
 
         // ── 2. Cell backgrounds and content ──────────────────────────────────
@@ -85,8 +85,7 @@ public class SudokuGrid extends JPanel {
             }
         }
 
-        // ── 3. Mode-specific outlines (Timed borders drawn before grid lines) ──
-        if (mode == GameMode.TIMED) drawChaosRegionBorders(g2, cellW, cellH, t);
+
 
         // ── 4. Standard grid lines ────────────────────────────────────────────
         drawGridLines(g2, W, H, cellW, cellH, t);
@@ -176,84 +175,10 @@ public class SudokuGrid extends JPanel {
         }
     }
 
-    // ── Timed Mode rendering ─────────────────────────────────────────────────
 
-    /** Fill each cell with its region's tint (low alpha). */
-    private void drawChaosRegionTints(Graphics2D g2, int cellW, int cellH) {
-        for (ChaosRegion region : state.getChaosRegions()) {
-            g2.setColor(region.getColor());
-            for (ChaosRegion.Cell cell : region.getCells())
-                g2.fillRect(cell.col() * cellW + 1, cell.row() * cellH + 1,
-                        cellW - 2, cellH - 2);
-        }
-    }
-
-    /**
-     * Draw a thick border around each region boundary (between cells that belong
-     * to different regions).  All four edges of every cell are tested so the
-     * outer grid boundary and every internal boundary are fully drawn.
-     */
-    private void drawChaosRegionBorders(Graphics2D g2, int cellW, int cellH,
-                                        ThemeManager.Theme t) {
-        int[][] regionMap = buildRegionMap();
-        Stroke borderStroke = new BasicStroke(2.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-        g2.setStroke(borderStroke);
-
-        for (int r = 0; r < 9; r++) {
-            for (int c = 0; c < 9; c++) {
-                int x = c * cellW, y = r * cellH;
-                int me = regionMap[r][c];
-
-                Color raw    = state.getChaosRegions().get(me).getColor();
-                Color border = new Color(raw.getRed(), raw.getGreen(), raw.getBlue(), 200);
-                g2.setColor(border);
-
-                // Top edge: outer border OR different region above
-                int above = (r > 0) ? regionMap[r - 1][c] : -1;
-                if (above != me)
-                    g2.drawLine(x + 2, y, x + cellW - 2, y);
-
-                // Left edge
-                int left = (c > 0) ? regionMap[r][c - 1] : -1;
-                if (left != me)
-                    g2.drawLine(x, y + 2, x, y + cellH - 2);
-
-                // Right edge
-                int right = (c < 8) ? regionMap[r][c + 1] : -1;
-                if (right != me)
-                    g2.drawLine(x + cellW, y + 2, x + cellW, y + cellH - 2);
-
-                // Bottom edge
-                int below = (r < 8) ? regionMap[r + 1][c] : -1;
-                if (below != me)
-                    g2.drawLine(x + 2, y + cellH, x + cellW - 2, y + cellH);
-            }
-        }
-    }
-
-    private int[][] buildRegionMap() {
-        int[][] map = new int[9][9];
-        for (ChaosRegion region : state.getChaosRegions())
-            for (ChaosRegion.Cell cell : region.getCells())
-                map[cell.row()][cell.col()] = region.getRegionIndex();
-        return map;
-    }
 
     // ── Killer Mode rendering ─────────────────────────────────────────────────
 
-    /**
-     * Fills each cage with its own pastel tint.
-     *
-     * Painting order:
-     *   1. Fill cage cells with the cage's pastel colour (alpha ~75, fully
-     *      opaque enough to read but light enough that digits stay visible).
-     *   2. Draw a subtle 1-px inner border in a slightly darker shade of the
-     *      same hue — this visually separates adjacent cages that happen to
-     *      receive similar colours without needing a heavy outline.
-     *
-     * The dashed-outline + sum-label pass in {@link #drawKillerCageOutlines}
-     * runs afterwards and sits on top.
-     */
     private void drawKillerCageTints(Graphics2D g2, int cellW, int cellH,
                                      ThemeManager.Theme t) {
         for (Cage cage : state.getCages()) {

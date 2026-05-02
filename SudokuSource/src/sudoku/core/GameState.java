@@ -34,8 +34,7 @@ public class GameState {
     private boolean pencilMode = false;
 
     // ── mode-specific data ───────────────────────────────────────────────────
-    private final GameMode         gameMode;
-    private final List<ChaosRegion> chaosRegions;   // non-null in CHAOS mode
+    private final GameMode         gameMode;// non-null in CHAOS mode
     private final List<Cage>        cages;           // non-null in KILLER mode
 
     // ── constructors ─────────────────────────────────────────────────────────
@@ -43,17 +42,15 @@ public class GameState {
     /** Classic mode constructor (original signature). */
     @SuppressWarnings("unchecked")
     public GameState(int[][] puzzle, int[][] solution) {
-        this(puzzle, solution, GameMode.CLASSIC, Collections.emptyList(), Collections.emptyList());
+        this(puzzle, solution, GameMode.CLASSIC, Collections.emptyList());
     }
 
     /** Full constructor used by the new modes. */
     @SuppressWarnings("unchecked")
     public GameState(int[][] puzzle, int[][] solution,
                      GameMode gameMode,
-                     List<ChaosRegion> chaosRegions,
                      List<Cage> cages) {
         this.gameMode     = gameMode;
-        this.chaosRegions = chaosRegions != null ? chaosRegions : Collections.emptyList();
         this.cages        = cages        != null ? cages        : Collections.emptyList();
 
         board      = new int[SIZE][SIZE];
@@ -94,7 +91,6 @@ public class GameState {
     public int[][]      getSolution()           { return solution;           }
 
     public GameMode         getGameMode()    { return gameMode;     }
-    public List<ChaosRegion> getChaosRegions(){ return chaosRegions; }
     public List<Cage>        getCages()      { return cages;         }
 
     // ── entering a number ────────────────────────────────────────────────────
@@ -189,9 +185,6 @@ public class GameState {
             for (int c = bc; c < bc + 3; c++)
                 if ((r != row || c != col) && board[r][c] == value) return false;
 
-        // Chaos Mode: check irregular regions
-        for (ChaosRegion region : chaosRegions)
-            if (region.wouldConflict(board, row, col, value)) return false;
 
         // Killer Mode: check cage duplicates and sum overflow
         for (Cage cage : cages) {
